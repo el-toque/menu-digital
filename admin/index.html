@@ -16,7 +16,7 @@
 <section id="login-panel" class="admin-panel">
 <span class="eyebrow">ACCESO PRIVADO</span><h1>Panel de control</h1>
 <p>Inicia sesión con la cuenta administradora para gestionar tu menú.</p>
-<form id="login-form" novalidate>
+<form id="login-form" novalidate onsubmit="event.preventDefault();const m=document.getElementById('login-message');m.textContent='Comprobando el acceso…';setTimeout(()=>{if(!this.dataset.handlerReady){m.textContent='El módulo de acceso no respondió. Recarga la página e inténtalo de nuevo.';m.classList.add('error')}},2500)">
 <label class="admin-label" for="email">Correo electrónico</label>
 <input class="admin-input" id="email" name="email" type="email" autocomplete="username" required placeholder="admin@eltoque.com">
 <label class="admin-label" for="password">Contraseña</label>
@@ -51,5 +51,5 @@
 </section>
 </main>
 
-<script type="module" src="../assets/admin.js?v=20261031-login-fix-3"></script>
+<script type="module" src="../assets/admin.js?v=20261031-login-fix-4"></script>
 </body></html>
