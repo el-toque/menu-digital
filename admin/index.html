@@ -50,35 +50,6 @@
 <section class="admin-card products-manager"><div class="section-heading"><h2>Productos</h2><span id="product-count" class="muted"></span></div><div id="product-list" class="manage-list"></div></section>
 </section>
 </main>
-<script>
-(function(){
- const form=document.getElementById("login-form");
- const message=document.getElementById("login-message");
- const button=form.querySelector('button[type="submit"]');
- form.addEventListener("submit",async function(event){
-  event.preventDefault();
-  if(button.disabled)return;
-  const email=document.getElementById("email").value.trim();
-  const password=document.getElementById("password").value;
-  if(!email||!password){message.textContent="Escribe el correo y la contraseña.";return;}
-  button.disabled=true;button.textContent="Verificando…";
-  message.textContent="Conectando con el sistema de acceso…";
-  try{
-   const module=await import("https://esm.sh/@supabase/supabase-js@2.57.4");
-   const client=module.createClient("https://xdqtaskumrwohqfcuial.supabase.co","sb_publishable_67zeK-MfnR0yxQmma2v7Xg_AWCZdEPh");
-   const result=await client.auth.signInWithPassword({email:email,password:password});
-   if(result.error)throw result.error;
-   message.textContent="Acceso confirmado. Abriendo administración…";
-   window.location.reload();
-  }catch(error){
-   console.error("Error de acceso:",error);
-   message.textContent=error&&error.message?("No se pudo iniciar sesión: "+error.message):"No se pudo conectar con el sistema de acceso.";
-   message.classList.add("error");
-  }finally{
-   button.disabled=false;button.textContent="Entrar al panel";
-  }
- });
-})();
-</script>
-<script type="module" src="../assets/admin.js?v=20261031-login-fix-2"></script>
+
+<script type="module" src="../assets/admin.js?v=20261031-login-fix-3"></script>
 </body></html>
