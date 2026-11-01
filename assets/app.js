@@ -1,7 +1,7 @@
 // Configuración pública del proyecto Supabase exclusivo del menú.
 const SUPABASE_URL = "https://xdqtaskumrwohqfcuial.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_67zeK-MfnR0yxQmma2v7Xg_AWCZdEPh";
-const DEFAULT_PRODUCT_IMAGE = "assets/el-toque-placeholder.svg";
+const DEFAULT_PRODUCT_IMAGE = "/menu-digital/assets/el-toque-placeholder.svg";
 const categoriesEl=document.querySelector("#categories"),productsEl=document.querySelector("#products"),statusEl=document.querySelector("#menu-status");
 let selectedCategory="Todas",menuItems=[];
 function money(value,currency=""){const n=Number(value);return Number.isFinite(n)?new Intl.NumberFormat("es",{maximumFractionDigits:2}).format(n)+(currency?" "+currency:""):""}
