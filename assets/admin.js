@@ -51,36 +51,71 @@ async function preparePhoto(file){
  }
  // JPG/PNG/WEBP compatibles pueden subirse tal como están si Chrome Android
  // no consigue decodificarlos para crear la versión optimizada.
+ // Alternativas de lectura para distintas versiones de Chrome Android:
+ // ImageDecoder -> createImageBitmap -> Blob URL -> FileReader/Data URL.
  const canUploadOriginal=["image/jpeg","image/png","image/webp"].includes(type)||["jpg","jpeg","png","webp"].includes(ext);
+ let bitmap=null,image=null,lastError=null;
  try{
-  let bitmap=null,image=null;
-  try{
-   if(typeof createImageBitmap==="function"){try{bitmap=await createImageBitmap(source)}catch(err){console.warn("createImageBitmap falló; probando Image:",err)}}
-   if(!bitmap){
-    const objectUrl=URL.createObjectURL(source);
-    try{image=await new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>resolve(img);img.onerror=()=>reject(new Error("Chrome no pudo decodificar la imagen para optimizarla."));img.src=objectUrl})}
-    finally{URL.revokeObjectURL(objectUrl)}
-   }
-   const width=bitmap?bitmap.width:image.naturalWidth,height=bitmap?bitmap.height:image.naturalHeight;
-   if(!width||!height)throw new Error("La imagen no tiene dimensiones válidas.");
-   const scale=Math.min(1,1600/Math.max(width,height));
-   const canvas=document.createElement("canvas");canvas.width=Math.max(1,Math.round(width*scale));canvas.height=Math.max(1,Math.round(height*scale));
-   const ctx=canvas.getContext("2d");if(!ctx)throw new Error("No se pudo preparar el lienzo de imagen.");
-   ctx.fillStyle="#ffffff";ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(bitmap||image,0,0,canvas.width,canvas.height);
-   const toBlob=q=>new Promise(resolve=>canvas.toBlob(resolve,"image/jpeg",q));
-   let blob=await toBlob(0.84);if(!blob)throw new Error("Chrome no pudo convertir la imagen.");
-   if(blob.size>4.7*1024*1024)blob=await toBlob(0.68);
-   if(!blob||blob.size>5*1024*1024)throw new Error("La foto optimizada supera los 5 MB.");
-   return new File([blob],"producto-"+Date.now()+".jpg",{type:"image/jpeg"});
-  }finally{if(bitmap)bitmap.close()}
+  if(typeof ImageDecoder!=="undefined"){
+   let decoder;
+   try{
+    decoder=new ImageDecoder({data:source,type:type||"image/jpeg"});
+    await decoder.tracks.ready;
+    const frame=await decoder.decode({frameIndex:0});
+    bitmap=frame.image;
+   }catch(err){lastError=err;console.warn("ImageDecoder falló:",err)}
+   finally{try{decoder?.close()}catch(_){}}
+  }
+  if(!bitmap&&typeof createImageBitmap==="function"){
+   try{bitmap=await createImageBitmap(source)}catch(err){lastError=err;console.warn("createImageBitmap falló:",err)}
+  }
+  if(!bitmap){
+   const decodeImage=src=>new Promise((resolve,reject)=>{
+    const img=new Image();
+    img.onload=()=>resolve(img);
+    img.onerror=()=>reject(new Error("Chrome no pudo decodificar la imagen."));
+    img.src=src;
+   });
+   let blobUrl;
+   try{
+    blobUrl=URL.createObjectURL(source);
+    try{image=await decodeImage(blobUrl)}
+    catch(err){
+     lastError=err;
+     const dataUrl=await new Promise((resolve,reject)=>{
+      const reader=new FileReader();
+      reader.onload=()=>resolve(reader.result);
+      reader.onerror=()=>reject(new Error("Chrome no pudo leer el archivo desde la galería."));
+      reader.readAsDataURL(source);
+     });
+     image=await decodeImage(dataUrl);
+    }
+   }finally{if(blobUrl)URL.revokeObjectURL(blobUrl)}
+  }
+  const width=bitmap?bitmap.width:image.naturalWidth,height=bitmap?bitmap.height:image.naturalHeight;
+  if(!width||!height)throw new Error("La imagen no tiene dimensiones válidas.");
+  const scale=Math.min(1,1600/Math.max(width,height));
+  const canvas=document.createElement("canvas");
+  canvas.width=Math.max(1,Math.round(width*scale));canvas.height=Math.max(1,Math.round(height*scale));
+  const ctx=canvas.getContext("2d");
+  if(!ctx)throw new Error("No se pudo preparar el lienzo de imagen.");
+  ctx.fillStyle="#ffffff";ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.drawImage(bitmap||image,0,0,canvas.width,canvas.height);
+  const toBlob=q=>new Promise(resolve=>canvas.toBlob(resolve,"image/jpeg",q));
+  let blob=await toBlob(0.84);
+  if(!blob)throw new Error("Chrome no pudo convertir la imagen a JPG.");
+  if(blob.size>4.7*1024*1024)blob=await toBlob(0.68);
+  if(!blob||blob.size>5*1024*1024)throw new Error("La foto optimizada supera los 5 MB.");
+  return new File([blob],"producto-"+Date.now()+".jpg",{type:"image/jpeg"});
  }catch(err){
+  console.warn("Fallaron los métodos alternativos de lectura/conversión:",lastError||err);
   if(canUploadOriginal&&source.size<=5*1024*1024){
-   console.warn("Se subirá la imagen original sin optimizar:",err);
+   message(dashboardMessage,"Chrome no pudo preparar la vista previa optimizada. Se conservará el archivo original para intentar subirlo.",false);
    return source;
   }
-  if(canUploadOriginal&&source.size>5*1024*1024)throw new Error("Chrome no pudo optimizar esta foto y el archivo original supera los 5 MB. Selecciona una foto más pequeña.");
+  if(canUploadOriginal&&source.size>5*1024*1024)throw new Error("Chrome no pudo optimizar esta foto y el original supera los 5 MB. Selecciona una foto más pequeña.");
   throw new Error((err.message||"No se pudo preparar la foto.")+" Prueba con JPG o PNG.");
- }
+ }finally{if(bitmap&&typeof bitmap.close==="function")bitmap.close()}
 }
 $("#product-photo-file").addEventListener("change",async e=>{
  const source=e.target.files?.[0];selectedPhoto=null;
