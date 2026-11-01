@@ -80,9 +80,33 @@ $("#product-photo-file").addEventListener("change",async e=>{
   message(dashboardMessage,"La foto se muestra, pero no se pudo preparar para subirla: "+(err.message||String(err)),true);
  }
 });
-async function uploadProductPhoto(){if(!selectedPhoto)return null;const file=await preparePhoto(selectedPhoto);const ext=file.type==="image/jpeg"?"jpg":file.type==="image/png"?"png":"webp";const {data:{session}}=await db.auth.getSession();if(!session)throw new Error("Tu sesión caducó. Cierra sesión y vuelve a entrar.");const path=Date.now()+"-"+Math.random().toString(36).slice(2)+"."+ext;const {data,error}=await db.storage.from("menu-images").upload(path,file,{contentType:file.type,cacheControl:"3600",upsert:false});if(error)throw new Error(error.message+" (Storage: menu-images)");const publicUrl=db.storage.from("menu-images").getPublicUrl(data.path).data.publicUrl;if(!publicUrl)throw new Error("La foto se subió, pero no se pudo obtener su dirección pública.");return publicUrl;}
+async function uploadProductPhoto(){if(!selectedPhoto)return null;const file=selectedPhoto;const ext=file.type==="image/jpeg"?"jpg":file.type==="image/png"?"png":"webp";const {data:{session}}=await db.auth.getSession();if(!session)throw new Error("Tu sesión caducó. Cierra sesión y vuelve a entrar.");const path=Date.now()+"-"+Math.random().toString(36).slice(2)+"."+ext;const {data,error}=await db.storage.from("menu-images").upload(path,file,{contentType:file.type,cacheControl:"3600",upsert:false});if(error)throw new Error(error.message+" (Storage: menu-images)");const publicUrl=db.storage.from("menu-images").getPublicUrl(data.path).data.publicUrl;if(!publicUrl)throw new Error("La foto se subió, pero no se pudo obtener su dirección pública.");return publicUrl;}
 $("#cancel-edit").addEventListener("click",resetProduct);
 $("#product-list").addEventListener("click",async e=>{const t=e.target.closest("button");if(!t)return;if(t.dataset.edit){const p=products.find(x=>x.id===t.dataset.edit);$("#product-id").value=p.id;$("#product-name").value=p.name;$("#product-description").value=p.description||"";$("#product-price").value=p.price;$("#product-currency").value=p.currency||"";$("#product-category").value=p.category_id||"";selectedPhoto=null;clearPhotoPreview();if(p.image_url){$("#product-photo-preview").src=p.image_url;$("#product-photo-preview").hidden=false}$("#product-status").value=p.status;$("#product-form-title").textContent="Editar producto";$("#product-name").focus();window.scrollTo({top:0,behavior:"smooth"})}else if(t.dataset.delete){const p=products.find(x=>x.id===t.dataset.delete);if(!confirm('¿Eliminar "'+p.name+'" definitivamente?'))return;const {error}=await db.from("menu_products").delete().eq("id",p.id);if(error)message(dashboardMessage,error.message,true);else await loadData()}});
-$("#product-form").addEventListener("submit",async e=>{e.preventDefault();const id=$("#product-id").value;const item={name:$("#product-name").value.trim(),description:$("#product-description").value.trim(),price:Number($("#product-price").value),currency:$("#product-currency").value.trim(),category_id:$("#product-category").value||null,image_url:(id?(products.find(p=>p.id===id)?.image_url||null):null),status:$("#product-status").value};try{if(selectedPhoto){message(dashboardMessage,"Preparando y subiendo fotografía…");item.image_url=await uploadProductPhoto()}}catch(err){console.error("Photo upload failed",err);message(dashboardMessage,"No se pudo subir la foto: "+(err.message||"Error desconocido"),true);return}message(dashboardMessage,"Guardando producto…");const q=id?db.from("menu_products").update(item).eq("id",id):db.from("menu_products").insert(item);const {error}=await q;if(error){message(dashboardMessage,"La foto se subió, pero no se pudo guardar el producto: "+error.message,true);return}resetProduct();await loadData();message(dashboardMessage,item.image_url?"Producto guardado con fotografía.":"Producto guardado correctamente.");});
+$("#product-form").addEventListener("submit",async e=>{
+ e.preventDefault();
+ const form=$("#product-form"),saveButton=form.querySelector('button[type="submit"]');
+ if(saveButton.disabled)return;
+ const id=$("#product-id").value;
+ const item={name:$("#product-name").value.trim(),description:$("#product-description").value.trim(),price:Number($("#product-price").value),currency:$("#product-currency").value.trim(),category_id:$("#product-category").value||null,image_url:(id?(products.find(p=>p.id===id)?.image_url||null):null),status:$("#product-status").value};
+ saveButton.disabled=true;saveButton.textContent="Guardando…";
+ try{
+  if(selectedPhoto){message(dashboardMessage,"Subiendo fotografía…");item.image_url=await uploadProductPhoto()}
+  message(dashboardMessage,"Guardando producto en la base de datos…");
+  const q=id?db.from("menu_products").update(item).eq("id",id):db.from("menu_products").insert(item);
+  const {data,error}=await q.select("id").single();
+  if(error)throw new Error(error.message);
+  if(!data?.id)throw new Error("No se recibió confirmación del producto guardado. Actualiza la lista antes de repetirlo.");
+  resetProduct();
+  message(dashboardMessage,"Producto guardado. Actualizando la lista…");
+  await loadData();
+  message(dashboardMessage,"Producto guardado correctamente.");
+ }catch(err){
+  console.error("Product save failed:",err);
+  message(dashboardMessage,"No se pudo completar el guardado: "+(err.message||"Error desconocido"),true);
+ }finally{
+  saveButton.disabled=false;saveButton.textContent="Guardar producto";
+ }
+});
 db.auth.onAuthStateChange((event,session)=>{if(event==="SIGNED_OUT")showLogin()});
 verifyAdmin();
