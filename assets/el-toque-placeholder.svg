@@ -1,12 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" role="img" aria-label="EL TOQUE">
 <defs>
- <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff3b0"/><stop offset=".2" stop-color="#c88a16"/><stop offset=".42" stop-color="#fff0a0"/><stop offset=".7" stop-color="#a76a08"/><stop offset="1" stop-color="#ffe18a"/></linearGradient>
- <filter id="shine" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="2" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
- <path id="wordArc" d="M 105 440 A 205 205 0 0 0 495 440"/>
+ <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#fff5ad"/><stop offset=".25" stop-color="#d79a20"/><stop offset=".48" stop-color="#fff0a0"/><stop offset=".72" stop-color="#a96908"/><stop offset="1" stop-color="#ffe38a"/></linearGradient>
+ <filter id="shine" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="2.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
 </defs>
 <rect width="600" height="600" fill="#000"/>
-<circle cx="300" cy="292" r="255" fill="none" stroke="url(#gold)" stroke-width="7" filter="url(#shine)"/>
-<circle cx="300" cy="292" r="229" fill="none" stroke="url(#gold)" stroke-width="3"/>
-<text x="300" y="365" text-anchor="middle" font-family="Georgia,serif" font-size="270" font-weight="bold" font-style="italic" letter-spacing="-24" fill="url(#gold)" stroke="#8b5b0a" stroke-width="1.5">LY</text>
-<text font-family="Georgia,serif" font-size="49" font-weight="bold" letter-spacing="5" fill="url(#gold)"><textPath href="#wordArc" startOffset="50%" text-anchor="middle">EL TOQUE</textPath></text>
+<circle cx="300" cy="300" r="265" fill="none" stroke="url(#gold)" stroke-width="8"/>
+<circle cx="300" cy="300" r="244" fill="none" stroke="url(#gold)" stroke-width="3"/>
+<text x="300" y="365" text-anchor="middle" font-family="Georgia,serif" font-size="220" font-style="italic" font-weight="bold" letter-spacing="-18" fill="url(#gold)" stroke="#9a650d" stroke-width="2" filter="url(#shine)">LY</text>
+<path id="bottomArc" d="M 92 385 A 225 225 0 0 0 508 385" fill="none"/>
+<text font-family="Georgia,serif" font-size="48" font-weight="bold" letter-spacing="5" fill="url(#gold)"><textPath href="#bottomArc" startOffset="50%" text-anchor="middle">EL TOQUE</textPath></text>
 </svg>
