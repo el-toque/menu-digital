@@ -40,7 +40,12 @@ function resetProduct(){ $("#product-form").reset();$("#product-id").value="";$(
 async function preparePhoto(file){
  let source=file;let type=file.type||"";const ext=(file.name.split(".").pop()||"").toLowerCase();
  if(!type)type=({jpg:"image/jpeg",jpeg:"image/jpeg",png:"image/png",webp:"image/webp",heic:"image/heic",heif:"image/heif"})[ext]||"";
- if(["image/heic","image/heif","image/heic-sequence","image/heif-sequence"].includes(type)){
+ // Algunos teléfonos entregan fotos HEIC/HEIF con nombre .jpg y MIME image/jpeg.
+ // Detectamos el formato real por la firma interna del archivo, no solo por su nombre.
+ let brand="";
+ try{const bytes=new Uint8Array(await file.slice(0,32).arrayBuffer());if(bytes.length>=12&&String.fromCharCode(...bytes.slice(4,8))==="ftyp")brand=String.fromCharCode(...bytes.slice(8,12)).toLowerCase()}catch(_){}
+ const isHeif=["heic","heix","hevc","hevx","mif1","msf1"].includes(brand)||["image/heic","image/heif","image/heic-sequence","image/heif-sequence"].includes(type)||["heic","heif"].includes(ext);
+ if(isHeif){
   message(dashboardMessage,"Convirtiendo foto HEIC del teléfono…");
   try{const mod=await import("https://esm.sh/heic2any@0.0.4");const convert=mod.default||mod;const converted=await convert({blob:file,toType:"image/jpeg",quality:0.86});source=Array.isArray(converted)?converted[0]:converted}
   catch(err){throw new Error("No se pudo convertir la foto HEIC. Guárdala como JPG y vuelve a seleccionarla. Detalle: "+(err.message||"conversión fallida"))}
