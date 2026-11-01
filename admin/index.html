@@ -1,3 +1,54 @@
 <!doctype html>
-<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>Administración · Menú digital</title><link rel="stylesheet" href="../assets/styles.css"><style>.admin-wrap{max-width:560px;margin:70px auto;padding:0 20px}.admin-panel{background:#fff;border:1px solid var(--line);border-radius:22px;padding:30px}.admin-panel h1{font-size:34px}.admin-panel p{color:var(--muted);font-size:13px;line-height:1.6}.notice{background:#fff6e6;padding:12px;border-radius:10px}.admin-label{display:block;font-size:12px;font-weight:700;margin:18px 0 7px}.admin-input{width:100%;padding:13px;border:1px solid var(--line);border-radius:11px;font:14px sans-serif}.admin-button{margin-top:20px;width:100%;border:0;border-radius:12px;background:var(--ink);color:white;padding:14px;font-weight:700}</style></head>
-<body><header class="site-header"><a class="brand" href="../"><span class="brand-mark">🍋</span><span><strong>EL TOQUE</strong><small>ADMINISTRACIÓN</small></span></a><a href="../" style="font-size:12px;text-decoration:none">Ver menú ↗</a></header><main class="admin-wrap"><section class="admin-panel"><span class="eyebrow">ACCESO PRIVADO</span><h1>Panel de control</h1><p>Desde aquí podrás administrar productos, categorías, precios, fotografías y disponibilidad del menú.</p><p class="notice">El acceso se activará al conectar la autenticación segura de Supabase y crear tu cuenta administradora.</p><label class="admin-label" for="email">Correo del administrador</label><input class="admin-input" id="email" type="email" autocomplete="username" placeholder="Tu correo"><label class="admin-label" for="password">Contraseña</label><input class="admin-input" id="password" type="password" disabled placeholder="Tu contraseña"><button class="admin-button" disabled>Conectar acceso seguro</button></section></main></body></html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Administración · Menú digital</title>
+<link rel="stylesheet" href="../assets/styles.css">
+<link rel="stylesheet" href="../assets/admin.css">
+</head>
+<body>
+<header class="site-header">
+<a class="brand" href="../"><span class="brand-mark">🍋</span><span><strong>EL TOQUE</strong><small>ADMINISTRACIÓN</small></span></a>
+<a href="../" class="back-link">Ver menú ↗</a>
+</header>
+<main class="admin-wrap">
+<section id="login-panel" class="admin-panel">
+<span class="eyebrow">ACCESO PRIVADO</span><h1>Panel de control</h1>
+<p>Inicia sesión con la cuenta administradora para gestionar tu menú.</p>
+<form id="login-form">
+<label class="admin-label" for="email">Correo electrónico</label>
+<input class="admin-input" id="email" type="email" autocomplete="username" required placeholder="admin@eltoque.com">
+<label class="admin-label" for="password">Contraseña</label>
+<input class="admin-input" id="password" type="password" autocomplete="current-password" required placeholder="Tu contraseña">
+<button class="admin-button" type="submit">Entrar al panel</button>
+</form><p id="login-message" class="message" role="status"></p>
+</section>
+<section id="dashboard" hidden>
+<div class="dashboard-head"><div><span class="eyebrow">GESTIÓN DEL MENÚ</span><h1>Tu menú, bajo control</h1><p id="admin-email" class="muted"></p></div><button id="logout-button" class="secondary-button">Cerrar sesión</button></div>
+<div id="dashboard-message" class="message" role="status"></div>
+<div class="admin-columns">
+<section class="admin-card">
+<h2>Categorías</h2>
+<form id="category-form" class="inline-form"><input id="category-name" class="admin-input" required maxlength="80" placeholder="Ej. Bebidas"><button class="primary-button" type="submit">Añadir</button></form>
+<div id="category-list" class="manage-list"></div>
+</section>
+<section class="admin-card product-editor">
+<h2 id="product-form-title">Añadir producto</h2>
+<form id="product-form">
+<input id="product-id" type="hidden">
+<label class="admin-label" for="product-name">Nombre</label><input id="product-name" class="admin-input" required maxlength="120">
+<label class="admin-label" for="product-description">Descripción</label><textarea id="product-description" class="admin-input" rows="3" maxlength="500"></textarea>
+<div class="field-row"><div><label class="admin-label" for="product-price">Precio</label><input id="product-price" class="admin-input" type="number" min="0" step="0.01" required></div><div><label class="admin-label" for="product-currency">Moneda</label><input id="product-currency" class="admin-input" maxlength="8" placeholder="CUP"></div></div>
+<label class="admin-label" for="product-category">Categoría</label><select id="product-category" class="admin-input"><option value="">Sin categoría</option></select>
+<label class="admin-label" for="product-image">URL de fotografía (opcional)</label><input id="product-image" class="admin-input" type="url" placeholder="https://...">
+<label class="admin-label" for="product-status">Disponibilidad</label><select id="product-status" class="admin-input"><option value="available">Disponible</option><option value="sold_out">Agotado</option><option value="hidden">Oculto</option></select>
+<div class="field-row"><button class="primary-button" type="submit">Guardar producto</button><button id="cancel-edit" class="secondary-button" type="button">Limpiar</button></div>
+</form>
+</section>
+</div>
+<section class="admin-card products-manager"><div class="section-heading"><h2>Productos</h2><span id="product-count" class="muted"></span></div><div id="product-list" class="manage-list"></div></section>
+</section>
+</main>
+<script type="module" src="../assets/admin.js"></script>
+</body></html>
