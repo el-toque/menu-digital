@@ -45,20 +45,30 @@ async function preparePhoto(file){
   try{const mod=await import("https://esm.sh/heic2any@0.0.4");const convert=mod.default||mod;const converted=await convert({blob:file,toType:"image/jpeg",quality:0.86});source=Array.isArray(converted)?converted[0]:converted}
   catch(err){throw new Error("No se pudo convertir la foto HEIC. Guárdala como JPG y vuelve a seleccionarla. Detalle: "+(err.message||"conversión fallida"))}
  }
- const objectUrl=URL.createObjectURL(source);
- let image;
+ let bitmap=null,image=null;
  try{
-  image=await new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>resolve(img);img.onerror=()=>reject(new Error("El navegador no pudo decodificar la foto. Prueba guardarla como JPG o PNG."));img.src=objectUrl});
-  const maxSide=1600,scale=Math.min(1,maxSide/Math.max(image.naturalWidth,image.naturalHeight));
-  const canvas=document.createElement("canvas");canvas.width=Math.max(1,Math.round(image.naturalWidth*scale));canvas.height=Math.max(1,Math.round(image.naturalHeight*scale));
+  // En algunos Android/Chrome, Image() falla con fotos que createImageBitmap sí puede leer.
+  if(typeof createImageBitmap==="function"){
+   try{bitmap=await createImageBitmap(source)}catch(bitmapError){console.warn("createImageBitmap no pudo abrir la foto; probando decodificación alternativa:",bitmapError)}
+  }
+  if(!bitmap){
+   const objectUrl=URL.createObjectURL(source);
+   try{
+    image=await new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>resolve(img);img.onerror=()=>reject(new Error("Chrome no pudo leer esta imagen. Prueba abrirla en Galería y guardarla como JPG."));img.src=objectUrl});
+   }finally{URL.revokeObjectURL(objectUrl)}
+  }
+  const width=bitmap?bitmap.width:image.naturalWidth,height=bitmap?bitmap.height:image.naturalHeight;
+  if(!width||!height)throw new Error("La imagen no tiene dimensiones válidas. Prueba con otra foto JPG o PNG.");
+  const maxSide=1600,scale=Math.min(1,maxSide/Math.max(width,height));
+  const canvas=document.createElement("canvas");canvas.width=Math.max(1,Math.round(width*scale));canvas.height=Math.max(1,Math.round(height*scale));
   const ctx=canvas.getContext("2d");if(!ctx)throw new Error("No se pudo preparar la fotografía en este navegador.");
-  ctx.fillStyle="#ffffff";ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(image,0,0,canvas.width,canvas.height);
+  ctx.fillStyle="#ffffff";ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(bitmap||image,0,0,canvas.width,canvas.height);
   const toBlob=q=>new Promise(resolve=>canvas.toBlob(resolve,"image/jpeg",q));
   let blob=await toBlob(0.84);if(!blob)throw new Error("No se pudo convertir la foto a JPG.");
   if(blob.size>4.7*1024*1024)blob=await toBlob(0.68);
   if(!blob||blob.size>5*1024*1024)throw new Error("La foto sigue superando los 5 MB después de optimizarla. Selecciona otra imagen.");
   return new File([blob],"producto-"+Date.now()+".jpg",{type:"image/jpeg"});
- }finally{URL.revokeObjectURL(objectUrl)}
+ }finally{if(bitmap)bitmap.close()}
 }
 $("#product-photo-file").addEventListener("change",async e=>{
  const source=e.target.files?.[0];selectedPhoto=null;
