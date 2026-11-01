@@ -32,17 +32,6 @@ function renderProducts(){
  $("#product-list").innerHTML=products.map(p=>{const cat=categories.find(c=>c.id===p.category_id)?.name||"Sin categoría";const state={available:"Disponible",sold_out:"Agotado",hidden:"Oculto"}[p.status];return `<div class="manage-row product-row"><div class="product-summary">${p.image_url?`<img src="${esc(p.image_url)}" alt="">`:'<span class="mini-photo">🍽️</span>'}<div><strong>${esc(p.name)}</strong><small>${esc(cat)} · ${state}</small><b>${money(p.price,p.currency)}</b></div></div><div class="row-actions"><button class="small-button" data-edit="${p.id}">Editar</button><button class="small-button danger" data-delete="${p.id}">Eliminar</button></div></div>`}).join("")||'<p class="muted">Todavía no hay productos. Añade el primero arriba.</p>';
 }
 $("#login-form").addEventListener("submit",async e=>{e.preventDefault();message(loginMessage,"Verificando acceso…");const {error}=await db.auth.signInWithPassword({email:$("#email").value.trim(),password:$("#password").value});if(error){message(loginMessage,"No se pudo iniciar sesión. Comprueba el correo y la contraseña.",true);return}await verifyAdmin()});
-$("#password-form").addEventListener("submit",async e=>{
- e.preventDefault();
- const next=$("#new-password").value,confirm=$("#confirm-password").value;
- if(next.length<8){message($("#password-message"),"Usa al menos 8 caracteres.",true);return}
- if(next!==confirm){message($("#password-message"),"Las contraseñas no coinciden.",true);return}
- message($("#password-message"),"Actualizando contraseña…");
- const {error}=await db.auth.updateUser({password:next});
- if(error){message($("#password-message"),"No se pudo cambiar la contraseña: "+error.message,true);return}
- $("#password-form").reset();
- message($("#password-message"),"Contraseña actualizada correctamente. La próxima vez entra con la nueva contraseña.");
-});
 $("#logout-button").addEventListener("click",async()=>{await db.auth.signOut();showLogin();message(loginMessage,"Sesión cerrada.")});
 $("#category-form").addEventListener("submit",async e=>{e.preventDefault();const name=$("#category-name").value.trim();if(!name)return;const {error}=await db.from("menu_categories").insert({name,sort_order:categories.length});if(error){message(dashboardMessage,error.message,true);return}$("#category-name").value="";await loadData()});
 $("#category-list").addEventListener("click",async e=>{const t=e.target.closest("button");if(!t)return;let error;if(t.dataset.catToggle){const c=categories.find(x=>x.id===t.dataset.catToggle);({error}=await db.from("menu_categories").update({is_active:!c.is_active}).eq("id",c.id))}else if(t.dataset.catDelete){const c=categories.find(x=>x.id===t.dataset.catDelete);if(!confirm('¿Eliminar la categoría "'+c.name+'"? Los productos quedarán sin categoría.'))return;({error}=await db.from("menu_categories").delete().eq("id",c.id))}if(error)message(dashboardMessage,error.message,true);else await loadData()});
