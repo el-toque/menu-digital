@@ -133,6 +133,7 @@ async function preparePhoto(file){
  }finally{
   if(bitmap&&typeof bitmap.close==="function")try{bitmap.close()}catch(_){}
   try{decoder?.close()}catch(_){}
+ }
 }
 $("#product-photo-file").addEventListener("change",async e=>{
  const source=e.target.files?.[0];selectedPhoto=null;
