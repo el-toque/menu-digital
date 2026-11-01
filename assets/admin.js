@@ -1,4 +1,4 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
+const { createClient } = window.supabase || {}; if (!createClient) throw new Error("No se pudo cargar la biblioteca de acceso a Supabase.");
 const SUPABASE_URL="https://xdqtaskumrwohqfcuial.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY="sb_publishable_67zeK-MfnR0yxQmma2v7Xg_AWCZdEPh";
 const db=createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY);
