@@ -98,8 +98,23 @@ $("#product-photo-file").addEventListener("change",async e=>{
   photoPreviewUrl=URL.createObjectURL(ready);preview.src=photoPreviewUrl;
   message(dashboardMessage,"Foto lista. Pulsa «Guardar producto» para subirla.");
  }catch(err){
-  selectedPhoto=null;console.error("Photo preview error:",err);
-  message(dashboardMessage,"La foto se muestra, pero no se pudo preparar para subirla: "+(err.message||String(err)),true);
+  console.error("Photo preview error:",err);
+  // Si Chrome Android no logra decodificar una imagen estándar, permitir subir
+  // el archivo original sin recomprimirlo. Detectar el formato por su firma real.
+  try{
+   const head=new Uint8Array(await source.slice(0,16).arrayBuffer());
+   let mime="",extension="";
+   if(head[0]===0xff&&head[1]===0xd8&&head[2]===0xff){mime="image/jpeg";extension="jpg"}
+   else if(head[0]===0x89&&head[1]===0x50&&head[2]===0x4e&&head[3]===0x47){mime="image/png";extension="png"}
+   else if(head.length>=12&&String.fromCharCode(...head.slice(0,4))==="RIFF"&&String.fromCharCode(...head.slice(8,12))==="WEBP"){mime="image/webp";extension="webp"}
+   if(mime){
+    selectedPhoto=new File([source],"producto-original-"+Date.now()+"."+extension,{type:mime});
+    message(dashboardMessage,"Chrome no pudo mostrar la vista previa, pero el archivo es "+extension.toUpperCase()+" válido. Puedes guardar el producto; se subirá la foto original sin modificar.",false);
+    return;
+   }
+  }catch(fallbackError){console.warn("No se pudo validar la foto original:",fallbackError)}
+  selectedPhoto=null;
+  message(dashboardMessage,"Chrome no pudo leer ni validar esta foto. Prueba con una captura de pantalla de la imagen o con otra foto JPG, PNG o WEBP.",true);
  }
 });
 async function uploadProductPhoto(){if(!selectedPhoto)return null;const file=selectedPhoto;const ext=file.type==="image/jpeg"?"jpg":file.type==="image/png"?"png":"webp";const {data:{session}}=await db.auth.getSession();if(!session)throw new Error("Tu sesión caducó. Cierra sesión y vuelve a entrar.");const path=Date.now()+"-"+Math.random().toString(36).slice(2)+"."+ext;const {data,error}=await db.storage.from("menu-images").upload(path,file,{contentType:file.type,cacheControl:"3600",upsert:false});if(error)throw new Error(error.message+" (Storage: menu-images)");const publicUrl=db.storage.from("menu-images").getPublicUrl(data.path).data.publicUrl;if(!publicUrl)throw new Error("La foto se subió, pero no se pudo obtener su dirección pública.");return publicUrl;}
