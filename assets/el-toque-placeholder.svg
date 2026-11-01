@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" role="img" aria-label="EL TOQUE">
+<rect width="600" height="600" fill="#050505"/>
+<g fill="none" stroke="#c9a45b" stroke-width="10">
+<path d="M300 105 455 260 300 415 145 260Z"/>
+<path d="M300 155 405 260 300 365 195 260Z" stroke-width="3" opacity=".55"/>
+</g>
+<path d="M300 188 372 260 300 332 228 260Z" fill="#c9a45b"/>
+<path d="M300 215 345 260 300 305 255 260Z" fill="#050505"/>
+<text x="300" y="495" text-anchor="middle" fill="#d7b66e" font-family="Georgia,serif" font-size="55" letter-spacing="8">EL TOQUE</text>
+<path d="M150 525H450" stroke="#9d7a3d" stroke-width="2" opacity=".8"/>
+</svg>
