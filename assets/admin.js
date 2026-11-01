@@ -40,40 +40,47 @@ function resetProduct(){ $("#product-form").reset();$("#product-id").value="";$(
 async function preparePhoto(file){
  let source=file;let type=file.type||"";const ext=(file.name.split(".").pop()||"").toLowerCase();
  if(!type)type=({jpg:"image/jpeg",jpeg:"image/jpeg",png:"image/png",webp:"image/webp",heic:"image/heic",heif:"image/heif"})[ext]||"";
- // Algunos teléfonos entregan fotos HEIC/HEIF con nombre .jpg y MIME image/jpeg.
- // Detectamos el formato real por la firma interna del archivo, no solo por su nombre.
+ // Detectar HEIC/HEIF por su firma real: estos formatos sí necesitan conversión.
  let brand="";
  try{const bytes=new Uint8Array(await file.slice(0,32).arrayBuffer());if(bytes.length>=12&&String.fromCharCode(...bytes.slice(4,8))==="ftyp")brand=String.fromCharCode(...bytes.slice(8,12)).toLowerCase()}catch(_){}
  const isHeif=["heic","heix","hevc","hevx","mif1","msf1"].includes(brand)||["image/heic","image/heif","image/heic-sequence","image/heif-sequence"].includes(type)||["heic","heif"].includes(ext);
  if(isHeif){
   message(dashboardMessage,"Convirtiendo foto HEIC del teléfono…");
-  try{const mod=await import("https://esm.sh/heic2any@0.0.4");const convert=mod.default||mod;const converted=await convert({blob:file,toType:"image/jpeg",quality:0.86});source=Array.isArray(converted)?converted[0]:converted}
-  catch(err){throw new Error("No se pudo convertir la foto HEIC. Guárdala como JPG y vuelve a seleccionarla. Detalle: "+(err.message||"conversión fallida"))}
+  try{const mod=await import("https://esm.sh/heic2any@0.0.4");const convert=mod.default||mod;const converted=await convert({blob:file,toType:"image/jpeg",quality:0.86});source=Array.isArray(converted)?converted[0]:converted;type="image/jpeg"}
+  catch(err){throw new Error("No se pudo convertir la foto HEIC. Ábrela en Galería y expórtala como JPG. Detalle: "+(err.message||"conversión fallida"))}
  }
- let bitmap=null,image=null;
+ // JPG/PNG/WEBP compatibles pueden subirse tal como están si Chrome Android
+ // no consigue decodificarlos para crear la versión optimizada.
+ const canUploadOriginal=["image/jpeg","image/png","image/webp"].includes(type)||["jpg","jpeg","png","webp"].includes(ext);
  try{
-  // En algunos Android/Chrome, Image() falla con fotos que createImageBitmap sí puede leer.
-  if(typeof createImageBitmap==="function"){
-   try{bitmap=await createImageBitmap(source)}catch(bitmapError){console.warn("createImageBitmap no pudo abrir la foto; probando decodificación alternativa:",bitmapError)}
+  let bitmap=null,image=null;
+  try{
+   if(typeof createImageBitmap==="function"){try{bitmap=await createImageBitmap(source)}catch(err){console.warn("createImageBitmap falló; probando Image:",err)}}
+   if(!bitmap){
+    const objectUrl=URL.createObjectURL(source);
+    try{image=await new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>resolve(img);img.onerror=()=>reject(new Error("Chrome no pudo decodificar la imagen para optimizarla."));img.src=objectUrl})}
+    finally{URL.revokeObjectURL(objectUrl)}
+   }
+   const width=bitmap?bitmap.width:image.naturalWidth,height=bitmap?bitmap.height:image.naturalHeight;
+   if(!width||!height)throw new Error("La imagen no tiene dimensiones válidas.");
+   const scale=Math.min(1,1600/Math.max(width,height));
+   const canvas=document.createElement("canvas");canvas.width=Math.max(1,Math.round(width*scale));canvas.height=Math.max(1,Math.round(height*scale));
+   const ctx=canvas.getContext("2d");if(!ctx)throw new Error("No se pudo preparar el lienzo de imagen.");
+   ctx.fillStyle="#ffffff";ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(bitmap||image,0,0,canvas.width,canvas.height);
+   const toBlob=q=>new Promise(resolve=>canvas.toBlob(resolve,"image/jpeg",q));
+   let blob=await toBlob(0.84);if(!blob)throw new Error("Chrome no pudo convertir la imagen.");
+   if(blob.size>4.7*1024*1024)blob=await toBlob(0.68);
+   if(!blob||blob.size>5*1024*1024)throw new Error("La foto optimizada supera los 5 MB.");
+   return new File([blob],"producto-"+Date.now()+".jpg",{type:"image/jpeg"});
+  }finally{if(bitmap)bitmap.close()}
+ }catch(err){
+  if(canUploadOriginal&&source.size<=5*1024*1024){
+   console.warn("Se subirá la imagen original sin optimizar:",err);
+   return source;
   }
-  if(!bitmap){
-   const objectUrl=URL.createObjectURL(source);
-   try{
-    image=await new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>resolve(img);img.onerror=()=>reject(new Error("Chrome no pudo leer esta imagen. Prueba abrirla en Galería y guardarla como JPG."));img.src=objectUrl});
-   }finally{URL.revokeObjectURL(objectUrl)}
-  }
-  const width=bitmap?bitmap.width:image.naturalWidth,height=bitmap?bitmap.height:image.naturalHeight;
-  if(!width||!height)throw new Error("La imagen no tiene dimensiones válidas. Prueba con otra foto JPG o PNG.");
-  const maxSide=1600,scale=Math.min(1,maxSide/Math.max(width,height));
-  const canvas=document.createElement("canvas");canvas.width=Math.max(1,Math.round(width*scale));canvas.height=Math.max(1,Math.round(height*scale));
-  const ctx=canvas.getContext("2d");if(!ctx)throw new Error("No se pudo preparar la fotografía en este navegador.");
-  ctx.fillStyle="#ffffff";ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(bitmap||image,0,0,canvas.width,canvas.height);
-  const toBlob=q=>new Promise(resolve=>canvas.toBlob(resolve,"image/jpeg",q));
-  let blob=await toBlob(0.84);if(!blob)throw new Error("No se pudo convertir la foto a JPG.");
-  if(blob.size>4.7*1024*1024)blob=await toBlob(0.68);
-  if(!blob||blob.size>5*1024*1024)throw new Error("La foto sigue superando los 5 MB después de optimizarla. Selecciona otra imagen.");
-  return new File([blob],"producto-"+Date.now()+".jpg",{type:"image/jpeg"});
- }finally{if(bitmap)bitmap.close()}
+  if(canUploadOriginal&&source.size>5*1024*1024)throw new Error("Chrome no pudo optimizar esta foto y el archivo original supera los 5 MB. Selecciona una foto más pequeña.");
+  throw new Error((err.message||"No se pudo preparar la foto.")+" Prueba con JPG o PNG.");
+ }
 }
 $("#product-photo-file").addEventListener("change",async e=>{
  const source=e.target.files?.[0];selectedPhoto=null;
