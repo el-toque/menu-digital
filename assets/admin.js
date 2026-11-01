@@ -38,83 +38,73 @@ $("#category-list").addEventListener("click",async e=>{const t=e.target.closest(
 function clearPhotoPreview(){if(photoPreviewUrl){URL.revokeObjectURL(photoPreviewUrl);photoPreviewUrl=null}$("#product-photo-preview").hidden=true;$("#product-photo-preview").removeAttribute("src")}
 function resetProduct(){ $("#product-form").reset();$("#product-id").value="";$("#product-form-title").textContent="Añadir producto";$("#product-status").value="available";selectedPhoto=null;clearPhotoPreview()}
 async function preparePhoto(file){
- let source=file;let type=file.type||"";const ext=(file.name.split(".").pop()||"").toLowerCase();
+ let source=file;
+ let type=file.type||"";
+ const ext=(file.name.split(".").pop()||"").toLowerCase();
  if(!type)type=({jpg:"image/jpeg",jpeg:"image/jpeg",png:"image/png",webp:"image/webp",heic:"image/heic",heif:"image/heif"})[ext]||"";
- // Detectar HEIC/HEIF por su firma real: estos formatos sí necesitan conversión.
+
+ // Detectar HEIC/HEIF por la firma real del archivo, aunque Android lo etiquete como JPG.
  let brand="";
  try{const bytes=new Uint8Array(await file.slice(0,32).arrayBuffer());if(bytes.length>=12&&String.fromCharCode(...bytes.slice(4,8))==="ftyp")brand=String.fromCharCode(...bytes.slice(8,12)).toLowerCase()}catch(_){}
  const isHeif=["heic","heix","hevc","hevx","mif1","msf1"].includes(brand)||["image/heic","image/heif","image/heic-sequence","image/heif-sequence"].includes(type)||["heic","heif"].includes(ext);
  if(isHeif){
-  message(dashboardMessage,"Convirtiendo foto HEIC del teléfono…");
-  try{const mod=await import("https://esm.sh/heic2any@0.0.4");const convert=mod.default||mod;const converted=await convert({blob:file,toType:"image/jpeg",quality:0.86});source=Array.isArray(converted)?converted[0]:converted;type="image/jpeg"}
-  catch(err){throw new Error("No se pudo convertir la foto HEIC. Ábrela en Galería y expórtala como JPG. Detalle: "+(err.message||"conversión fallida"))}
+  message(dashboardMessage,"Convirtiendo foto HEIC/HEIF del teléfono…");
+  try{const mod=await import("https://esm.sh/heic2any@0.0.4");const convert=mod.default||mod;const converted=await convert({blob:file,toType:"image/jpeg",quality:0.88});source=Array.isArray(converted)?converted[0]:converted;type="image/jpeg"}
+  catch(err){throw new Error("No se pudo convertir la foto HEIC/HEIF. Detalle: "+(err.message||"conversión fallida"))}
  }
- // JPG/PNG/WEBP compatibles pueden subirse tal como están si Chrome Android
- // no consigue decodificarlos para crear la versión optimizada.
- // Alternativas de lectura para distintas versiones de Chrome Android:
- // ImageDecoder -> createImageBitmap -> Blob URL -> FileReader/Data URL.
- const canUploadOriginal=["image/jpeg","image/png","image/webp"].includes(type)||["jpg","jpeg","png","webp"].includes(ext);
+
  let bitmap=null,image=null,lastError=null;
+ // Método 1: decodificación directa del Blob (rápido y respeta orientación EXIF en navegadores compatibles).
+ if(typeof createImageBitmap==="function"){
+  try{bitmap=await createImageBitmap(source)}catch(err){lastError=err;console.warn("Método 1 createImageBitmap falló:",err)}
+ }
+ // Método 2: Image + URL temporal.
+ if(!bitmap){
+  let url="";
+  try{
+   url=URL.createObjectURL(source);
+   image=await new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>resolve(img);img.onerror=()=>reject(new Error("El navegador no pudo decodificar la imagen desde Blob URL."));img.src=url});
+  }catch(err){lastError=err;image=null;console.warn("Método 2 Blob URL falló:",err)}
+  finally{if(url)URL.revokeObjectURL(url)}
+ }
+ // Método 3: FileReader + data URL. Algunos Chrome Android leen este formato cuando falla Blob URL.
+ if(!bitmap&&!image){
+  try{
+   const dataUrl=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(reader.error||new Error("No se pudo leer el archivo"));reader.readAsDataURL(source)});
+   image=await new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>resolve(img);img.onerror=()=>reject(new Error("Chrome tampoco pudo decodificar la imagen como Data URL."));img.src=dataUrl});
+  }catch(err){lastError=err;image=null;console.warn("Método 3 FileReader/Data URL falló:",err)}
+ }
+ // Método 4: ImageDecoder (WebCodecs), disponible en algunas versiones recientes de Chrome.
+ if(!bitmap&&!image&&typeof ImageDecoder==="function"){
+  let decoder;
+  try{
+   const bytes=await source.arrayBuffer();
+   decoder=new ImageDecoder({data:bytes,type:source.type||type||"image/jpeg"});
+   await decoder.tracks.ready;
+   const result=await decoder.decode({frameIndex:0});
+   bitmap=result.image;
+  }catch(err){lastError=err;console.warn("Método 4 ImageDecoder falló:",err)}
+  finally{try{decoder?.close()}catch(_){}}
+ }
+ if(!bitmap&&!image)throw new Error("Chrome no pudo decodificar la foto con ninguno de los métodos disponibles. "+(lastError?.message||"Prueba con otra imagen o una captura de pantalla."));
+
  try{
-  if(typeof ImageDecoder!=="undefined"){
-   let decoder;
-   try{
-    decoder=new ImageDecoder({data:source,type:type||"image/jpeg"});
-    await decoder.tracks.ready;
-    const frame=await decoder.decode({frameIndex:0});
-    bitmap=frame.image;
-   }catch(err){lastError=err;console.warn("ImageDecoder falló:",err)}
-   finally{try{decoder?.close()}catch(_){}}
-  }
-  if(!bitmap&&typeof createImageBitmap==="function"){
-   try{bitmap=await createImageBitmap(source)}catch(err){lastError=err;console.warn("createImageBitmap falló:",err)}
-  }
-  if(!bitmap){
-   const decodeImage=src=>new Promise((resolve,reject)=>{
-    const img=new Image();
-    img.onload=()=>resolve(img);
-    img.onerror=()=>reject(new Error("Chrome no pudo decodificar la imagen."));
-    img.src=src;
-   });
-   let blobUrl;
-   try{
-    blobUrl=URL.createObjectURL(source);
-    try{image=await decodeImage(blobUrl)}
-    catch(err){
-     lastError=err;
-     const dataUrl=await new Promise((resolve,reject)=>{
-      const reader=new FileReader();
-      reader.onload=()=>resolve(reader.result);
-      reader.onerror=()=>reject(new Error("Chrome no pudo leer el archivo desde la galería."));
-      reader.readAsDataURL(source);
-     });
-     image=await decodeImage(dataUrl);
-    }
-   }finally{if(blobUrl)URL.revokeObjectURL(blobUrl)}
-  }
-  const width=bitmap?bitmap.width:image.naturalWidth,height=bitmap?bitmap.height:image.naturalHeight;
+  const width=bitmap?bitmap.displayWidth||bitmap.width:image.naturalWidth;
+  const height=bitmap?bitmap.displayHeight||bitmap.height:image.naturalHeight;
   if(!width||!height)throw new Error("La imagen no tiene dimensiones válidas.");
-  const scale=Math.min(1,1600/Math.max(width,height));
+  const maxSide=1600,scale=Math.min(1,maxSide/Math.max(width,height));
   const canvas=document.createElement("canvas");
   canvas.width=Math.max(1,Math.round(width*scale));canvas.height=Math.max(1,Math.round(height*scale));
   const ctx=canvas.getContext("2d");
-  if(!ctx)throw new Error("No se pudo preparar el lienzo de imagen.");
+  if(!ctx)throw new Error("No se pudo iniciar el conversor de imágenes.");
   ctx.fillStyle="#ffffff";ctx.fillRect(0,0,canvas.width,canvas.height);
   ctx.drawImage(bitmap||image,0,0,canvas.width,canvas.height);
   const toBlob=q=>new Promise(resolve=>canvas.toBlob(resolve,"image/jpeg",q));
-  let blob=await toBlob(0.84);
-  if(!blob)throw new Error("Chrome no pudo convertir la imagen a JPG.");
-  if(blob.size>4.7*1024*1024)blob=await toBlob(0.68);
-  if(!blob||blob.size>5*1024*1024)throw new Error("La foto optimizada supera los 5 MB.");
+  let blob=await toBlob(0.86);
+  if(!blob)throw new Error("El navegador no pudo convertir la imagen a JPG.");
+  if(blob.size>4.7*1024*1024)blob=await toBlob(0.70);
+  if(!blob||blob.size>5*1024*1024)throw new Error("La foto supera los 5 MB después de optimizarla.");
   return new File([blob],"producto-"+Date.now()+".jpg",{type:"image/jpeg"});
- }catch(err){
-  console.warn("Fallaron los métodos alternativos de lectura/conversión:",lastError||err);
-  if(canUploadOriginal&&source.size<=5*1024*1024){
-   message(dashboardMessage,"Chrome no pudo preparar la vista previa optimizada. Se conservará el archivo original para intentar subirlo.",false);
-   return source;
-  }
-  if(canUploadOriginal&&source.size>5*1024*1024)throw new Error("Chrome no pudo optimizar esta foto y el original supera los 5 MB. Selecciona una foto más pequeña.");
-  throw new Error((err.message||"No se pudo preparar la foto.")+" Prueba con JPG o PNG.");
  }finally{if(bitmap&&typeof bitmap.close==="function")bitmap.close()}
 }
 $("#product-photo-file").addEventListener("change",async e=>{
