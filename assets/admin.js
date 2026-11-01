@@ -37,10 +37,40 @@ $("#category-form").addEventListener("submit",async e=>{e.preventDefault();const
 $("#category-list").addEventListener("click",async e=>{const t=e.target.closest("button");if(!t)return;let error;if(t.dataset.catToggle){const c=categories.find(x=>x.id===t.dataset.catToggle);({error}=await db.from("menu_categories").update({is_active:!c.is_active}).eq("id",c.id))}else if(t.dataset.catDelete){const c=categories.find(x=>x.id===t.dataset.catDelete);if(!confirm('¿Eliminar la categoría "'+c.name+'"? Los productos quedarán sin categoría.'))return;({error}=await db.from("menu_categories").delete().eq("id",c.id))}if(error)message(dashboardMessage,error.message,true);else await loadData()});
 function clearPhotoPreview(){if(photoPreviewUrl){URL.revokeObjectURL(photoPreviewUrl);photoPreviewUrl=null}$("#product-photo-preview").hidden=true;$("#product-photo-preview").removeAttribute("src")}
 function resetProduct(){ $("#product-form").reset();$("#product-id").value="";$("#product-form-title").textContent="Añadir producto";$("#product-status").value="available";selectedPhoto=null;clearPhotoPreview()}
-$("#product-photo-file").addEventListener("change",e=>{const file=e.target.files?.[0];selectedPhoto=file||null;if(!file){clearPhotoPreview();return}if(!["image/jpeg","image/png","image/webp"].includes(file.type)||file.size>5*1024*1024){selectedPhoto=null;e.target.value="";message(dashboardMessage,"Elige una imagen JPG, PNG o WEBP de máximo 5 MB.",true);return}if(photoPreviewUrl)URL.revokeObjectURL(photoPreviewUrl);photoPreviewUrl=URL.createObjectURL(file);$("#product-photo-preview").src=photoPreviewUrl;$("#product-photo-preview").hidden=false;});
-async function uploadProductPhoto(){if(!selectedPhoto)return null;const ext=({ "image/jpeg":"jpg","image/png":"png","image/webp":"webp"})[selectedPhoto.type];const path=`${crypto.randomUUID()}.${ext}`;const {error}=await db.storage.from("menu-images").upload(path,selectedPhoto,{contentType:selectedPhoto.type,upsert:false});if(error)throw error;return db.storage.from("menu-images").getPublicUrl(path).data.publicUrl;}
+async function preparePhoto(file){
+ let photo=file;
+ let type=file.type||"";
+ const ext=(file.name.split(".").pop()||"").toLowerCase();
+ if(!type)type=({jpg:"image/jpeg",jpeg:"image/jpeg",png:"image/png",webp:"image/webp",heic:"image/heic",heif:"image/heif"})[ext]||"";
+ if(type==="image/heic"||type==="image/heif"||type==="image/heic-sequence"||type==="image/heif-sequence"){
+   message(dashboardMessage,"Convirtiendo foto del teléfono…");
+   const mod=await import("https://esm.sh/heic2any@0.0.4");
+   const convert=mod.default||mod;
+   const converted=await convert({blob:file,toType:"image/jpeg",quality:0.88});
+   photo=Array.isArray(converted)?converted[0]:converted;type="image/jpeg";
+ }
+ if(!["image/jpeg","image/png","image/webp"].includes(type))throw new Error("Formato no compatible. Selecciona JPG, PNG, WEBP o HEIC.");
+ if(photo.size>5*1024*1024)throw new Error("La foto supera los 5 MB permitidos.");
+ return new File([photo],`producto-${Date.now()}.${type==="image/jpeg"?"jpg":type==="image/png"?"png":"webp"}`,{type});
+}
+$("#product-photo-file").addEventListener("change",async e=>{
+ const file=e.target.files?.[0];selectedPhoto=null;clearPhotoPreview();if(!file)return;
+ try{selectedPhoto=await preparePhoto(file);photoPreviewUrl=URL.createObjectURL(selectedPhoto);$("#product-photo-preview").src=photoPreviewUrl;$("#product-photo-preview").hidden=false;message(dashboardMessage,"Fotografía lista para subir.");}
+ catch(err){e.target.value="";message(dashboardMessage,err.message||"No se pudo leer la fotografía.",true);}
+});
+async function uploadProductPhoto(){
+ if(!selectedPhoto)return null;
+ const ext=selectedPhoto.type==="image/jpeg"?"jpg":selectedPhoto.type==="image/png"?"png":"webp";
+ const path=`${crypto.randomUUID()}.${ext}`;
+ const {data,error}=await db.storage.from("menu-images").upload(path,selectedPhoto,{contentType:selectedPhoto.type,cacheControl:"3600",upsert:false});
+ if(error)throw new Error(error.message||"Storage rechazó la fotografía.");
+ const url=db.storage.from("menu-images").getPublicUrl(data.path).data.publicUrl;
+ const check=await fetch(url,{method:"HEAD",cache:"no-store"});
+ if(!check.ok)throw new Error("La foto se subió, pero no se puede leer públicamente (HTTP "+check.status+").");
+ return url;
+}
 $("#cancel-edit").addEventListener("click",resetProduct);
 $("#product-list").addEventListener("click",async e=>{const t=e.target.closest("button");if(!t)return;if(t.dataset.edit){const p=products.find(x=>x.id===t.dataset.edit);$("#product-id").value=p.id;$("#product-name").value=p.name;$("#product-description").value=p.description||"";$("#product-price").value=p.price;$("#product-currency").value=p.currency||"";$("#product-category").value=p.category_id||"";$("#product-image").value=p.image_url||"";selectedPhoto=null;clearPhotoPreview();if(p.image_url){$("#product-photo-preview").src=p.image_url;$("#product-photo-preview").hidden=false}$("#product-status").value=p.status;$("#product-form-title").textContent="Editar producto";$("#product-name").focus();window.scrollTo({top:0,behavior:"smooth"})}else if(t.dataset.delete){const p=products.find(x=>x.id===t.dataset.delete);if(!confirm('¿Eliminar "'+p.name+'" definitivamente?'))return;const {error}=await db.from("menu_products").delete().eq("id",p.id);if(error)message(dashboardMessage,error.message,true);else await loadData()}});
-$("#product-form").addEventListener("submit",async e=>{e.preventDefault();const id=$("#product-id").value;let imageUrl=$("#product-image").value.trim()||null;try{if(selectedPhoto)imageUrl=await uploadProductPhoto()}catch(err){message(dashboardMessage,"No se pudo subir la fotografía: "+err.message,true);return}const item={name:$("#product-name").value.trim(),description:$("#product-description").value.trim(),price:Number($("#product-price").value),currency:$("#product-currency").value.trim(),category_id:$("#product-category").value||null,image_url:imageUrl,status:$("#product-status").value};const q=id?db.from("menu_products").update(item).eq("id",id):db.from("menu_products").insert(item);const {error}=await q;if(error){message(dashboardMessage,error.message,true);return}resetProduct();await loadData()});
+$("#product-form").addEventListener("submit",async e=>{e.preventDefault();const id=$("#product-id").value;let imageUrl=$("#product-image").value.trim()||null;try{if(selectedPhoto){message(dashboardMessage,"Subiendo fotografía…");imageUrl=await uploadProductPhoto()}}catch(err){message(dashboardMessage,"No se pudo subir la fotografía: "+err.message,true);return}const item={name:$("#product-name").value.trim(),description:$("#product-description").value.trim(),price:Number($("#product-price").value),currency:$("#product-currency").value.trim(),category_id:$("#product-category").value||null,image_url:imageUrl,status:$("#product-status").value};const q=id?db.from("menu_products").update(item).eq("id",id):db.from("menu_products").insert(item);const {error}=await q;if(error){message(dashboardMessage,error.message,true);return}resetProduct();await loadData()});
 db.auth.onAuthStateChange((event,session)=>{if(event==="SIGNED_OUT")showLogin()});
 verifyAdmin();
