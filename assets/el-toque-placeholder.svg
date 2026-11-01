@@ -1,11 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" role="img" aria-label="EL TOQUE">
-<rect width="600" height="600" fill="#050505"/>
-<g fill="none" stroke="#c9a45b" stroke-width="10">
-<path d="M300 105 455 260 300 415 145 260Z"/>
-<path d="M300 155 405 260 300 365 195 260Z" stroke-width="3" opacity=".55"/>
-</g>
-<path d="M300 188 372 260 300 332 228 260Z" fill="#c9a45b"/>
-<path d="M300 215 345 260 300 305 255 260Z" fill="#050505"/>
-<text x="300" y="495" text-anchor="middle" fill="#d7b66e" font-family="Georgia,serif" font-size="55" letter-spacing="8">EL TOQUE</text>
-<path d="M150 525H450" stroke="#9d7a3d" stroke-width="2" opacity=".8"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" role="img" aria-label="El Toque">
+<defs>
+ <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#fff1a6"/><stop offset=".22" stop-color="#c88b18"/><stop offset=".48" stop-color="#ffe27b"/><stop offset=".72" stop-color="#a96b08"/><stop offset="1" stop-color="#ffdf70"/></linearGradient>
+ <filter id="glow"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+ <path id="arc" d="M 112,430 A 205,205 0 0,0 488,430"/>
+</defs>
+<rect width="600" height="600" fill="#000"/>
+<circle cx="300" cy="292" r="255" fill="none" stroke="url(#gold)" stroke-width="7" filter="url(#glow)"/>
+<circle cx="300" cy="292" r="229" fill="none" stroke="url(#gold)" stroke-width="3"/>
+<text x="300" y="345" text-anchor="middle" font-family="Georgia,serif" font-size="280" font-weight="bold" font-style="italic" letter-spacing="-30" fill="url(#gold)" stroke="#8b5b0a" stroke-width="1.5">LY</text>
+<text font-family="Georgia,serif" font-size="48" font-weight="bold" letter-spacing="5" fill="url(#gold)"><textPath href="#arc" startOffset="50%" text-anchor="middle">EL TOQUE</textPath></text>
 </svg>
