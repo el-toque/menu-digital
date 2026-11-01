@@ -38,20 +38,12 @@ $("#category-list").addEventListener("click",async e=>{const t=e.target.closest(
 function clearPhotoPreview(){if(photoPreviewUrl){URL.revokeObjectURL(photoPreviewUrl);photoPreviewUrl=null}$("#product-photo-preview").hidden=true;$("#product-photo-preview").removeAttribute("src")}
 function resetProduct(){ $("#product-form").reset();$("#product-id").value="";$("#product-form-title").textContent="Añadir producto";$("#product-status").value="available";selectedPhoto=null;clearPhotoPreview()}
 async function preparePhoto(file){
- let photo=file;
- let type=file.type||"";
- const ext=(file.name.split(".").pop()||"").toLowerCase();
+ let source=file;let type=file.type||"";const ext=(file.name.split(".").pop()||"").toLowerCase();
  if(!type)type=({jpg:"image/jpeg",jpeg:"image/jpeg",png:"image/png",webp:"image/webp",heic:"image/heic",heif:"image/heif"})[ext]||"";
- if(type==="image/heic"||type==="image/heif"||type==="image/heic-sequence"||type==="image/heif-sequence"){
-   message(dashboardMessage,"Convirtiendo foto del teléfono…");
-   const mod=await import("https://esm.sh/heic2any@0.0.4");
-   const convert=mod.default||mod;
-   const converted=await convert({blob:file,toType:"image/jpeg",quality:0.88});
-   photo=Array.isArray(converted)?converted[0]:converted;type="image/jpeg";
- }
- if(!["image/jpeg","image/png","image/webp"].includes(type))throw new Error("Formato no compatible. Selecciona JPG, PNG, WEBP o HEIC.");
- if(photo.size>5*1024*1024)throw new Error("La foto supera los 5 MB permitidos.");
- return new File([photo],`producto-${Date.now()}.${type==="image/jpeg"?"jpg":type==="image/png"?"png":"webp"}`,{type});
+ if(["image/heic","image/heif","image/heic-sequence","image/heif-sequence"].includes(type)){message(dashboardMessage,"Convirtiendo foto HEIC del teléfono…");try{const mod=await import("https://esm.sh/heic2any@0.0.4");const convert=mod.default||mod;const converted=await convert({blob:file,toType:"image/jpeg",quality:0.86});source=Array.isArray(converted)?converted[0]:converted}catch(err){throw new Error("No se pudo convertir la foto HEIC. Guárdala como JPG y vuelve a seleccionarla. Detalle: "+(err.message||"conversión fallida"))}}
+ let bitmap;try{bitmap=await createImageBitmap(source)}catch(err){throw new Error("El navegador no pudo leer esta foto. Prueba guardarla como JPG o PNG y seleccionarla otra vez.")}
+ const maxSide=1600,scale=Math.min(1,maxSide/Math.max(bitmap.width,bitmap.height));const canvas=document.createElement("canvas");canvas.width=Math.max(1,Math.round(bitmap.width*scale));canvas.height=Math.max(1,Math.round(bitmap.height*scale));const ctx=canvas.getContext("2d");if(!ctx){bitmap.close?.();throw new Error("No se pudo preparar la fotografía en este navegador.")};ctx.fillStyle="#ffffff";ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(bitmap,0,0,canvas.width,canvas.height);bitmap.close?.();
+ const toBlob=q=>new Promise(resolve=>canvas.toBlob(resolve,"image/jpeg",q));let blob=await toBlob(0.84);if(!blob)throw new Error("No se pudo convertir la foto a JPG.");if(blob.size>4.7*1024*1024)blob=await toBlob(0.68);if(!blob||blob.size>5*1024*1024)throw new Error("La foto sigue superando los 5 MB después de optimizarla. Selecciona otra imagen.");return new File([blob],"producto-"+Date.now()+".jpg",{type:"image/jpeg"});
 }
 $("#product-photo-file").addEventListener("change",e=>{const file=e.target.files?.[0];selectedPhoto=file||null;if(!file){clearPhotoPreview();return}const ext=(file.name.split(".").pop()||"").toLowerCase();const known=["jpg","jpeg","png","webp","heic","heif"].includes(ext);if(!(file.type.startsWith("image/")||known)){selectedPhoto=null;e.target.value="";message(dashboardMessage,"El archivo elegido no parece ser una fotografía compatible.",true);return}if(file.size>15*1024*1024){selectedPhoto=null;e.target.value="";message(dashboardMessage,"La foto original supera los 15 MB. Selecciona una imagen más pequeña.",true);return}if(photoPreviewUrl)URL.revokeObjectURL(photoPreviewUrl);photoPreviewUrl=URL.createObjectURL(file);const preview=$("#product-photo-preview");preview.onload=()=>message(dashboardMessage,"Foto seleccionada. Pulsa «Guardar producto» para subirla.");preview.onerror=()=>message(dashboardMessage,"Foto seleccionada. Si es HEIC, se convertirá al guardarla.");preview.src=photoPreviewUrl;preview.hidden=false;});
 async function uploadProductPhoto(){if(!selectedPhoto)return null;const file=await preparePhoto(selectedPhoto);const ext=file.type==="image/jpeg"?"jpg":file.type==="image/png"?"png":"webp";const {data:{session}}=await db.auth.getSession();if(!session)throw new Error("Tu sesión caducó. Cierra sesión y vuelve a entrar.");const path=Date.now()+"-"+Math.random().toString(36).slice(2)+"."+ext;const {data,error}=await db.storage.from("menu-images").upload(path,file,{contentType:file.type,cacheControl:"3600",upsert:false});if(error)throw new Error(error.message+" (Storage: menu-images)");const publicUrl=db.storage.from("menu-images").getPublicUrl(data.path).data.publicUrl;if(!publicUrl)throw new Error("La foto se subió, pero no se pudo obtener su dirección pública.");return publicUrl;}
