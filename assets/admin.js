@@ -75,18 +75,18 @@ async function preparePhoto(file){
   }catch(err){lastError=err;image=null;console.warn("Método 3 FileReader/Data URL falló:",err)}
  }
  // Método 4: ImageDecoder (WebCodecs), disponible en algunas versiones recientes de Chrome.
+ let decoder=null,decodedFrame=null;
  if(!bitmap&&!image&&typeof ImageDecoder==="function"){
-  let decoder;
   try{
    const bytes=await source.arrayBuffer();
    decoder=new ImageDecoder({data:bytes,type:source.type||type||"image/jpeg"});
    await decoder.tracks.ready;
    const result=await decoder.decode({frameIndex:0});
-   bitmap=result.image;
+   decodedFrame=result.image;
+   bitmap=decodedFrame;
   }catch(err){lastError=err;console.warn("Método 4 ImageDecoder falló:",err)}
-  finally{try{decoder?.close()}catch(_){}}
  }
- if(!bitmap&&!image)throw new Error("Chrome no pudo decodificar la foto con ninguno de los métodos disponibles. "+(lastError?.message||"Prueba con otra imagen o una captura de pantalla."));
+ if(!bitmap&&!image){try{decoder?.close()}catch(_){}throw new Error("Chrome no pudo decodificar la foto con ninguno de los métodos disponibles. "+(lastError?.message||"Prueba con otra imagen o una captura de pantalla."))}
 
  try{
   const width=bitmap?bitmap.displayWidth||bitmap.width:image.naturalWidth;
@@ -100,12 +100,20 @@ async function preparePhoto(file){
   ctx.fillStyle="#ffffff";ctx.fillRect(0,0,canvas.width,canvas.height);
   ctx.drawImage(bitmap||image,0,0,canvas.width,canvas.height);
   const toBlob=q=>new Promise(resolve=>canvas.toBlob(resolve,"image/jpeg",q));
-  let blob=await toBlob(0.86);
+  const toBlobAlternative=q=>canvas.convertToBlob?canvas.convertToBlob({type:"image/jpeg",quality:q}):Promise.resolve(null);
+  let blob=null;
+  try{blob=await toBlob(0.86)}catch(err){console.warn("Canvas.toBlob falló:",err)}
+  if(!blob){try{blob=await toBlobAlternative(0.86)}catch(err){console.warn("Canvas.convertToBlob falló:",err)}}
   if(!blob)throw new Error("El navegador no pudo convertir la imagen a JPG.");
-  if(blob.size>4.7*1024*1024)blob=await toBlob(0.70);
+  if(blob.size>4.7*1024*1024){
+   try{blob=await toBlob(0.70)}catch(_){blob=null}
+   if(!blob){try{blob=await toBlobAlternative(0.70)}catch(_){}}
+  }
   if(!blob||blob.size>5*1024*1024)throw new Error("La foto supera los 5 MB después de optimizarla.");
   return new File([blob],"producto-"+Date.now()+".jpg",{type:"image/jpeg"});
- }finally{if(bitmap&&typeof bitmap.close==="function")bitmap.close()}
+ }finally{
+  if(bitmap&&typeof bitmap.close==="function")try{bitmap.close()}catch(_){}
+  try{decoder?.close()}catch(_){}
 }
 $("#product-photo-file").addEventListener("change",async e=>{
  const source=e.target.files?.[0];selectedPhoto=null;
