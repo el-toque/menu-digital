@@ -40,12 +40,46 @@ function resetProduct(){ $("#product-form").reset();$("#product-id").value="";$(
 async function preparePhoto(file){
  let source=file;let type=file.type||"";const ext=(file.name.split(".").pop()||"").toLowerCase();
  if(!type)type=({jpg:"image/jpeg",jpeg:"image/jpeg",png:"image/png",webp:"image/webp",heic:"image/heic",heif:"image/heif"})[ext]||"";
- if(["image/heic","image/heif","image/heic-sequence","image/heif-sequence"].includes(type)){message(dashboardMessage,"Convirtiendo foto HEIC del teléfono…");try{const mod=await import("https://esm.sh/heic2any@0.0.4");const convert=mod.default||mod;const converted=await convert({blob:file,toType:"image/jpeg",quality:0.86});source=Array.isArray(converted)?converted[0]:converted}catch(err){throw new Error("No se pudo convertir la foto HEIC. Guárdala como JPG y vuelve a seleccionarla. Detalle: "+(err.message||"conversión fallida"))}}
- let bitmap;try{bitmap=await createImageBitmap(source)}catch(err){throw new Error("El navegador no pudo leer esta foto. Prueba guardarla como JPG o PNG y seleccionarla otra vez.")}
- const maxSide=1600,scale=Math.min(1,maxSide/Math.max(bitmap.width,bitmap.height));const canvas=document.createElement("canvas");canvas.width=Math.max(1,Math.round(bitmap.width*scale));canvas.height=Math.max(1,Math.round(bitmap.height*scale));const ctx=canvas.getContext("2d");if(!ctx){bitmap.close?.();throw new Error("No se pudo preparar la fotografía en este navegador.")};ctx.fillStyle="#ffffff";ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(bitmap,0,0,canvas.width,canvas.height);bitmap.close?.();
- const toBlob=q=>new Promise(resolve=>canvas.toBlob(resolve,"image/jpeg",q));let blob=await toBlob(0.84);if(!blob)throw new Error("No se pudo convertir la foto a JPG.");if(blob.size>4.7*1024*1024)blob=await toBlob(0.68);if(!blob||blob.size>5*1024*1024)throw new Error("La foto sigue superando los 5 MB después de optimizarla. Selecciona otra imagen.");return new File([blob],"producto-"+Date.now()+".jpg",{type:"image/jpeg"});
+ if(["image/heic","image/heif","image/heic-sequence","image/heif-sequence"].includes(type)){
+  message(dashboardMessage,"Convirtiendo foto HEIC del teléfono…");
+  try{const mod=await import("https://esm.sh/heic2any@0.0.4");const convert=mod.default||mod;const converted=await convert({blob:file,toType:"image/jpeg",quality:0.86});source=Array.isArray(converted)?converted[0]:converted}
+  catch(err){throw new Error("No se pudo convertir la foto HEIC. Guárdala como JPG y vuelve a seleccionarla. Detalle: "+(err.message||"conversión fallida"))}
+ }
+ const objectUrl=URL.createObjectURL(source);
+ let image;
+ try{
+  image=await new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>resolve(img);img.onerror=()=>reject(new Error("El navegador no pudo decodificar la foto. Prueba guardarla como JPG o PNG."));img.src=objectUrl});
+  const maxSide=1600,scale=Math.min(1,maxSide/Math.max(image.naturalWidth,image.naturalHeight));
+  const canvas=document.createElement("canvas");canvas.width=Math.max(1,Math.round(image.naturalWidth*scale));canvas.height=Math.max(1,Math.round(image.naturalHeight*scale));
+  const ctx=canvas.getContext("2d");if(!ctx)throw new Error("No se pudo preparar la fotografía en este navegador.");
+  ctx.fillStyle="#ffffff";ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(image,0,0,canvas.width,canvas.height);
+  const toBlob=q=>new Promise(resolve=>canvas.toBlob(resolve,"image/jpeg",q));
+  let blob=await toBlob(0.84);if(!blob)throw new Error("No se pudo convertir la foto a JPG.");
+  if(blob.size>4.7*1024*1024)blob=await toBlob(0.68);
+  if(!blob||blob.size>5*1024*1024)throw new Error("La foto sigue superando los 5 MB después de optimizarla. Selecciona otra imagen.");
+  return new File([blob],"producto-"+Date.now()+".jpg",{type:"image/jpeg"});
+ }finally{URL.revokeObjectURL(objectUrl)}
 }
-$("#product-photo-file").addEventListener("change",async e=>{const source=e.target.files?.[0];selectedPhoto=null;if(!source){clearPhotoPreview();return}const ext=(source.name.split(".").pop()||"").toLowerCase();if(!(source.type.startsWith("image/")||["jpg","jpeg","png","webp","heic","heif"].includes(ext))){e.target.value="";message(dashboardMessage,"El archivo seleccionado no es una imagen compatible.",true);return}if(source.size>15*1024*1024){e.target.value="";message(dashboardMessage,"La foto supera los 15 MB. Selecciona una imagen más pequeña.",true);return}message(dashboardMessage,"Preparando vista previa…");try{const ready=await preparePhoto(source);selectedPhoto=ready;if(photoPreviewUrl)URL.revokeObjectURL(photoPreviewUrl);photoPreviewUrl=URL.createObjectURL(ready);const preview=$("#product-photo-preview");preview.onload=()=>message(dashboardMessage,"Foto lista. Pulsa «Guardar producto» para subirla.");preview.onerror=()=>message(dashboardMessage,"No se pudo mostrar la vista previa. Prueba con otra foto JPG o PNG.",true);preview.src=photoPreviewUrl;preview.hidden=false;$("#product-image").value="";}catch(err){selectedPhoto=null;console.error("Photo preview error:",err);message(dashboardMessage,"No se pudo preparar esta foto: "+(err.message||String(err)),true);}});
+$("#product-photo-file").addEventListener("change",async e=>{
+ const source=e.target.files?.[0];selectedPhoto=null;
+ if(!source){clearPhotoPreview();return}
+ const ext=(source.name.split(".").pop()||"").toLowerCase();
+ if(!(source.type.startsWith("image/")||["jpg","jpeg","png","webp","heic","heif"].includes(ext))){e.target.value="";message(dashboardMessage,"El archivo seleccionado no es una imagen compatible.",true);return}
+ if(source.size>15*1024*1024){e.target.value="";message(dashboardMessage,"La foto supera los 15 MB. Selecciona una imagen más pequeña.",true);return}
+ const preview=$("#product-photo-preview");
+ if(photoPreviewUrl)URL.revokeObjectURL(photoPreviewUrl);
+ photoPreviewUrl=URL.createObjectURL(source);preview.src=photoPreviewUrl;preview.hidden=false;
+ message(dashboardMessage,"Foto seleccionada. Preparando archivo para guardar…");
+ try{
+  const ready=await preparePhoto(source);selectedPhoto=ready;
+  if(photoPreviewUrl)URL.revokeObjectURL(photoPreviewUrl);
+  photoPreviewUrl=URL.createObjectURL(ready);preview.src=photoPreviewUrl;
+  message(dashboardMessage,"Foto lista. Pulsa «Guardar producto» para subirla.");
+ }catch(err){
+  selectedPhoto=null;console.error("Photo preview error:",err);
+  message(dashboardMessage,"La foto se muestra, pero no se pudo preparar para subirla: "+(err.message||String(err)),true);
+ }
+});
 async function uploadProductPhoto(){if(!selectedPhoto)return null;const file=await preparePhoto(selectedPhoto);const ext=file.type==="image/jpeg"?"jpg":file.type==="image/png"?"png":"webp";const {data:{session}}=await db.auth.getSession();if(!session)throw new Error("Tu sesión caducó. Cierra sesión y vuelve a entrar.");const path=Date.now()+"-"+Math.random().toString(36).slice(2)+"."+ext;const {data,error}=await db.storage.from("menu-images").upload(path,file,{contentType:file.type,cacheControl:"3600",upsert:false});if(error)throw new Error(error.message+" (Storage: menu-images)");const publicUrl=db.storage.from("menu-images").getPublicUrl(data.path).data.publicUrl;if(!publicUrl)throw new Error("La foto se subió, pero no se pudo obtener su dirección pública.");return publicUrl;}
 $("#cancel-edit").addEventListener("click",resetProduct);
 $("#product-list").addEventListener("click",async e=>{const t=e.target.closest("button");if(!t)return;if(t.dataset.edit){const p=products.find(x=>x.id===t.dataset.edit);$("#product-id").value=p.id;$("#product-name").value=p.name;$("#product-description").value=p.description||"";$("#product-price").value=p.price;$("#product-currency").value=p.currency||"";$("#product-category").value=p.category_id||"";$("#product-image").value=p.image_url||"";selectedPhoto=null;clearPhotoPreview();if(p.image_url){$("#product-photo-preview").src=p.image_url;$("#product-photo-preview").hidden=false}$("#product-status").value=p.status;$("#product-form-title").textContent="Editar producto";$("#product-name").focus();window.scrollTo({top:0,behavior:"smooth"})}else if(t.dataset.delete){const p=products.find(x=>x.id===t.dataset.delete);if(!confirm('¿Eliminar "'+p.name+'" definitivamente?'))return;const {error}=await db.from("menu_products").delete().eq("id",p.id);if(error)message(dashboardMessage,error.message,true);else await loadData()}});
