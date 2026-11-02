@@ -51,6 +51,36 @@
 </section>
 </main>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="../assets/admin.js?v=20261031-login-classic-2"></script>
+<script>
+(function(){
+ const form=document.getElementById("login-form"),msg=document.getElementById("login-message");
+ form.addEventListener("submit",function(){
+  if(form.dataset.handlerReady==="true")return;
+  msg.textContent="Conectando con el sistema de acceso…";
+  setTimeout(function(){
+   if(form.dataset.handlerReady!=="true"){
+    msg.textContent="No se pudo iniciar el módulo de acceso. Comprueba la conexión e inténtalo de nuevo.";
+    msg.classList.add("error");
+   }
+  },10000);
+ });
+})();
+</script>
+<script type="module">
+(async function(){
+ const msg=document.getElementById("login-message");
+ try{
+  const {createClient}=await import("https://esm.sh/@supabase/supabase-js@2");
+  window.supabase={createClient};
+  const script=document.createElement("script");
+  script.src="../assets/admin.js?v=20261102-supabase-loader-1";
+  script.onerror=()=>{msg.textContent="No se pudo cargar el panel administrativo. Recarga la página.";msg.classList.add("error")};
+  document.body.appendChild(script);
+ }catch(error){
+  console.error("No se pudo iniciar Supabase:",error);
+  msg.textContent="No se pudo conectar el módulo de acceso. Comprueba tu conexión o prueba otro navegador.";
+  msg.classList.add("error");
+ }
+})();
+</script>
 </body></html>
